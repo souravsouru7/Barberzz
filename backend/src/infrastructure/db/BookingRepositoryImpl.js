@@ -1,4 +1,4 @@
-const BookingRepository = require('../../domain/repositories/BookingRepository');
+const BookingRepository = require('../../domain/repositories/bookingRepository');
 const BookingModel = require('../models/booking');
 const PaymentModel = require('../models/payment');
 const ShopModel = require('../models/ShopModel');
