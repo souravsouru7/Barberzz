@@ -27,6 +27,7 @@ const SlotRoutes = require('./interfaces/routes/slotRoutes');
 const UserRoutes = require("./interfaces/routes/UserRoutes");
 const createChatRouter = require("./interfaces/routes/chatRoutes");
 const NotificationRoutes = require("./interfaces/routes/notification.routes")
+const analyticsRoutes=require("./interfaces/routes/analytics.routes")
 const reviewRoutes = require('./interfaces/routes/reviewRoutes');
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(cors());
@@ -50,6 +51,7 @@ app.use('/api/chat', createChatRouter(webSocketService));
 app.use('/api', UserRoutes);
 app.use("/api/notifications",NotificationRoutes)
 app.use('/api', reviewRoutes);
+app.use('/api', analyticsRoutes);
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server started on port ${PORT}`));
