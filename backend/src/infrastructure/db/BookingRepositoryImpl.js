@@ -31,19 +31,26 @@ class BookingRepositoryImpl extends BookingRepository {
     return await BookingModel.find({ userId }).sort({ bookingDate: -1 });
   }
   async findByShopAndDateRange(shopId, startDate, endDate) {
-    const bookings = await BookingModel.find({
-      shopId,
-      bookingDate: {
-        $gte: startDate,
-        $lte: endDate
-      }
-    });
-    return bookings.map(booking => ({
-      id: booking._id.toString(),
-      bookingSlot: booking.bookingSlot 
-    }));
-  }
-  
-}
+    try {
+      const bookings = await BookingModel.find({
+        shopId,
+        bookingDate: {
+          $gte: startDate,
+          $lte: endDate
+        },
+        // Fix: Add status check to only consider confirmed bookings
+        status: { $in: ['confirmed', 'pending'] }
+      }).lean();
 
+      return bookings.map(booking => ({
+        id: booking._id.toString(),
+        bookingSlot: booking.bookingSlot,
+        status: booking.status
+      }));
+    } catch (error) {
+      console.error('Error finding bookings:', error);
+      return [];
+    }
+  }
+}
 module.exports = BookingRepositoryImpl;

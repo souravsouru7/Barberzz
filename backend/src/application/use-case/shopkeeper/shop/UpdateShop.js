@@ -14,7 +14,6 @@ class UpdateService {
       throw new Error('Service not found');
     }
 
-    // Update the service at the found index
     shop.services[serviceIndex] = { ...shop.services[serviceIndex], ...updatedService };
 
     return await this.shopRepository.updateShop(shopId, { services: shop.services });

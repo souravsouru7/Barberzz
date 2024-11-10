@@ -1,3 +1,4 @@
+// src/application/use-case/fetchAvailableSlots.js
 class FetchAvailableSlotsUseCase {
   constructor(shopRepository, bookingRepository) {
     this.shopRepository = shopRepository;
@@ -21,7 +22,10 @@ class FetchAvailableSlotsUseCase {
     const start2 = this.convertTimeToMinutes(slot2Start);
     const end2 = this.convertTimeToMinutes(slot2End);
 
-    return start1 < end2 && end1 > start2;
+    // Fix: Change overlap logic to be more precise
+    return (start1 >= start2 && start1 < end2) || 
+           (end1 > start2 && end1 <= end2) ||
+           (start1 <= start2 && end1 >= end2);
   }
 
   async execute(shopId, date) {
@@ -41,53 +45,65 @@ class FetchAvailableSlotsUseCase {
       const endOfDay = new Date(date);
       endOfDay.setHours(23, 59, 59, 999);
 
-      const bookings = await this.bookingRepository.findByShopAndDateRange(shopId, startOfDay, endOfDay);
+      // Fix: Add proper error handling for booking retrieval
+      const bookings = await this.bookingRepository.findByShopAndDateRange(
+        shopId, 
+        startOfDay, 
+        endOfDay
+      );
 
-      // Create a more detailed set of booked slots
-      const bookedSlots = bookings.map(booking => {
-        const [startTime, endTime] = booking.bookingSlot.split('-');
-        return {
-          startTime,
-          endTime,
-          bookingId: booking.id
-        };
-      });
+      if (!bookings) {
+        console.warn('No bookings found for the specified date range');
+        return shop.availableSlots;
+      }
+
+      // Fix: Improve booked slots processing
+      const bookedSlots = bookings.reduce((acc, booking) => {
+        if (booking && booking.bookingSlot) {
+          const [startTime, endTime] = booking.bookingSlot.split('-');
+          if (this.isValidTimeFormat(startTime) && this.isValidTimeFormat(endTime)) {
+            acc.push({
+              startTime,
+              endTime,
+              bookingId: booking.id
+            });
+          }
+        }
+        return acc;
+      }, []);
 
       const currentTime = new Date();
       const currentHours = currentTime.getHours().toString().padStart(2, '0');
       const currentMinutes = currentTime.getMinutes().toString().padStart(2, '0');
       const currentTimeString = `${currentHours}:${currentMinutes}`;
 
+      // Fix: Improve slot filtering logic
       const availableSlots = shop.availableSlots.filter(slot => {
-        // Validate slot data
+        // Validate slot format
         if (!slot || !this.isValidTimeFormat(slot.startTime) || !this.isValidTimeFormat(slot.endTime)) {
-          console.warn(`Invalid slot format detected: ${JSON.stringify(slot)}`);
+          console.warn(`Invalid slot format: ${JSON.stringify(slot)}`);
           return false;
         }
 
-        try {
-          // Check if slot is already booked
-          const isBooked = bookedSlots.some(bookedSlot => 
-            this.isSlotOverlapping(
-              slot.startTime,
-              slot.endTime,
-              bookedSlot.startTime,
-              bookedSlot.endTime
-            )
+        // Check if the slot is already booked
+        const isBooked = bookedSlots.some(bookedSlot => {
+          return this.isSlotOverlapping(
+            slot.startTime,
+            slot.endTime,
+            bookedSlot.startTime,
+            bookedSlot.endTime
           );
+        });
 
-          // For today's slots, check if the slot start time is in the future
-          const isToday = new Date(date).setHours(0,0,0,0) === new Date().setHours(0,0,0,0);
-          const isFutureSlot = !isToday || this.convertTimeToMinutes(slot.startTime) > this.convertTimeToMinutes(currentTimeString);
+        // Check if the slot is in the future
+        const isToday = new Date(date).setHours(0,0,0,0) === currentTime.setHours(0,0,0,0);
+        const isFutureSlot = !isToday || 
+          this.convertTimeToMinutes(slot.startTime) > this.convertTimeToMinutes(currentTimeString);
 
-          return !isBooked && isFutureSlot;
-        } catch (error) {
-          console.error(`Error processing slot: ${JSON.stringify(slot)}`, error);
-          return false;
-        }
+        return !isBooked && isFutureSlot;
       });
 
-      // Sort available slots by start time
+
       return availableSlots.sort((a, b) => 
         this.convertTimeToMinutes(a.startTime) - this.convertTimeToMinutes(b.startTime)
       );

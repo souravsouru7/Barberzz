@@ -48,27 +48,67 @@ class ShopController {
       res.status(500).json({ error: error.message });
     }
   }
-
   async updateShop(req, res) {
     try {
       const shopId = req.params.id;
-      let shopData = req.body;
+      
+      // Check if shop exists using repository
+      const existingShop = await this.shopRepository.findById(shopId);
+      if (!existingShop) {
+        return res.status(404).json({ error: 'Shop not found' });
+      }
   
-      // Sanitize input data to remove any extra spaces from field names
-      shopData = Object.keys(shopData).reduce((acc, key) => {
-        const trimmedKey = key.trim();
-        acc[trimmedKey] = shopData[key];
-        return acc;
-      }, {});
+      // Initialize shopData with body data
+      let shopData = { ...req.body };
   
-      const shopImageFile = req.files.shopImage ? req.files.shopImage[0].path : null;
-      const licenseFile = req.files.licenseImage ? req.files.licenseImage[0].path : null;
+      // Handle file uploads only if files exist
+      if (req.files) {
+        // Check and handle shopImage
+        if (req.files.shopImage && req.files.shopImage[0]) {
+          try {
+            const result = await this.cloudinaryService.upload(req.files.shopImage[0].path);
+            shopData.shopImage = result.secure_url;
+          } catch (cloudinaryError) {
+            console.error('Cloudinary upload error (shopImage):', cloudinaryError);
+          }
+        }
   
-      const updatedShop = await this.updateShopUseCase.execute(shopId, shopData, shopImageFile, licenseFile, this.cloudinaryService);
+        // Check and handle licenseImage
+        if (req.files.licenseImage && req.files.licenseImage[0]) {
+          try {
+            const result = await this.cloudinaryService.upload(req.files.licenseImage[0].path);
+            shopData.licenseImage = result.secure_url;
+          } catch (cloudinaryError) {
+            console.error('Cloudinary upload error (licenseImage):', cloudinaryError);
+          }
+        }
+      }
   
-      res.status(200).json(updatedShop);
+      // Remove undefined or empty string values
+      Object.keys(shopData).forEach(key => {
+        if (shopData[key] === undefined || shopData[key] === '') {
+          delete shopData[key];
+        }
+      });
+  
+      if (Object.keys(shopData).length === 0) {
+        return res.status(400).json({ error: 'No data provided for update' });
+      }
+  
+      // Use the repository to update the shop
+      const updatedShop = await this.shopRepository.updateShop(shopId, shopData);
+  
+      res.status(200).json({
+        success: true,
+        data: updatedShop
+      });
+  
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      console.error('Shop update error:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message || 'Error updating shop'
+      });
     }
   }
 
